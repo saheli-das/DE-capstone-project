@@ -5,7 +5,6 @@ As part of this project, I have designed Entitiy Relationship Diagram, performed
 **Logistic Regression is the best model because:**
 It has the highest Precision-Recall AUC Score (0.925), which is critical for imbalanced datasets.
 It achieves the highest accuracy and cross-validation mean accuracy.
-It performs well on both majority and minority classes, with high recall and F1-score for the minority class.
-![image](https://github.com/user-attachments/assets/a21174c8-5528-46f3-9b63-8303e2ba6a5e)
+It performs well on both majority and minority classes, with high recall and F1-score for the minority class
 
 Since, Logistic Regression is the best model, I have created and App for Employee Attrition Prediction using this model and deployed it for which the code is available at Repository named **"emp_status_prediction"**
