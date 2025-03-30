@@ -234,7 +234,29 @@ GROUP BY
 ORDER BY
    NO_OF_EMP desc
 
---5.Existing Employees by age group 
+--5. Employees by tenure group
+
+SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+SELECT 
+CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END AS tenure_group,COUNT(EMP_NO) AS NO_OF_EMP FROM(
+SELECT 
+    emp_no,
+    DATEDIFF(day, hire_date,isnull(last_date,MAX(last_date)over())) / 365.0 AS tenure
+FROM 
+    final_table
+)AS X
+GROUP BY  CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END
+	) AS Y
+
+--6.Existing Employees by age group 
 
 SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
@@ -259,14 +281,14 @@ END
 	) AS Y
 
 
---6. Employees Hire Trends
+--7. Employees Hire Trends
 
 SELECT YEAR(hire_date) AS hire_year, COUNT(*) AS employee_count
 FROM final_table
 GROUP BY YEAR(hire_date)
 ORDER BY hire_year
 
---7. Employee Exit Trends 
+--8. Employee Exit Trends 
 
 SELECT YEAR(last_date) AS exit_year, COUNT(emp_no) AS total_exits
 FROM final_table
@@ -275,7 +297,7 @@ GROUP BY YEAR(last_date)
 order by  exit_year
 
 
- --8. Year wise total employee
+ --9. Year wise total employee
 
 select * , isnull(LAG(cum_left_emp_count)over(order by years),0) as new_count ,
 (SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over( order by years),0))
