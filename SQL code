@@ -117,9 +117,10 @@ ORDER BY AVG_SAL DESC
 
 select emp_no,DATEDIFF(year,hire_date,ISNULL(last_date,getdate()))as tenure from final_table
 
+------------------------------------------**--------------------------------------------------
 
 
---High level metrics
+-- ** High level metrics **
 
 select count(distinct dept_no)  from departments
 
@@ -142,9 +143,56 @@ select dept_no, COUNT(dept_no) from dept_manager group by dept_no having COUNT(d
 select dept_name, COUNT(emp_no) as total_emp from FINAL_TB 
 group by dept_name order by total_emp desc 
 
+select MAX(salary) as max_sal,min(salary) as min_sal from final_table 
+
+--Average Tenure of the Employee who left
+
+select AVG(tenure) as avg_tenure from(
+select emp_no, (DATEDIFF(day,hire_date,last_date))/365.0 as tenure from final_table
+where [left]=1) as x
+
+--Average Performance Rating
+
+select case when average_performance_rating>=1 and average_performance_rating<2 then 'PIP'
+            when average_performance_rating>=2 and average_performance_rating<3 then 'C'
+			when average_performance_rating>=3 and average_performance_rating<4 then 'B'
+			when average_performance_rating>=4 and average_performance_rating<5 then 'S'
+			else 'A'
+			end as avg_ratings from(
+select 
+    SUM(
+        CASE Last_performance_rating
+            WHEN 'PIP' THEN 1 * total_emp 
+            WHEN 'C' THEN 2 * total_emp 
+            WHEN 'B' THEN 3 * total_emp 
+            WHEN 'S' THEN 4 * total_emp 
+            WHEN 'A' THEN 5 * total_emp 
+        END
+    ) * 1.00/ SUM(total_emp) AS average_performance_rating from(
+select  Last_performance_rating ,COUNT(*) as total_emp from final_table
+group by Last_performance_rating) as x) as t
+
+--Average Number of Projects per Employee
+
+select AVG(no_of_projects) avg_projects from final_table
+
+--max and min  tenure
+
+select MAX(tenure) as max_tenure,MIN(tenure) as min_tenure from(
+select emp_no,datediff(day,hire_date,isnull(last_date,max(last_date)over()))/365.0 as tenure
+from final_table) as x
+
+--Average Age of the Employee who left
+
+select AVG(age) as avg_age,MAX(age) as max_age, MIN(age) as min_age from(
+select emp_no,datediff(day,birth_date,last_date)/365.0 as age
+from final_table) as x
+
 
 
 -----------------------------------------------------**-------------------------------------------------
+
+-- ** Employee analysis **
 
 --1. Distribution of Employees by Gender
 
@@ -153,99 +201,27 @@ select 'Female' as gender,COUNT(*) as total_no from final_table where sex='F'
 union 
 select 'Male' as gender,COUNT(*) as total_no from final_table where sex='M' ) as x 
 
+--2. Employee distribution by performance ratings
 
---2. Employees with Highest  and lowest Salaries
-
-select top 10 emp_no,CONCAT(first_name,' ',last_name) as emp_name,title,salary from final_table
-order by salary desc
-
-select top 10 emp_no,CONCAT(first_name,' ',last_name) as emp_name,title,salary from final_table
-order by salary asc
+select *,total_no*100.00/SUM(total_no)over() as pct from(
+select LAST_PERFORMANCE_RATING,COUNT(*) as total_no
+from final_table  group by LAST_PERFORMANCE_RATING) as x order by total_no desc
 
 
-
---3. Average Salary by Performance Rating
-
-SELECT last_performance_rating, 
-       AVG(salary) AS avg_salary, 
-       MIN(salary) AS min_salary, 
-       MAX(salary) AS max_salary, 
-       COUNT(*) AS employee_count
-FROM final_table
-GROUP BY last_performance_rating
-ORDER BY last_performance_rating
-
---4. Employee Count by Department
-
-select dept_name,COUNT(*) as total_emp from FINAL_TB group by dept_name order by total_emp desc
-
---5. Employee Count by Job Title
+--3. Employee Count by Job Title
 
 select title,COUNT(*) as total_emp from final_table group by title order by total_emp desc
 
---6. Average Salary by Job Title
+--4.Employee with No. of projects
 
-select title,avg(salary) as avg_sal from final_table group by title order by avg_sal desc
-
---7.Department wise Employee
-
-select dept_name, COUNT(emp_no) as total_emp from FINAL_TB
-group by dept_name order by total_emp desc
-
---8.Department wise average salary
-
-select  dept_name, AVG(salary) as avg_salary from FINAL_TB
-group by dept_name order by avg_salary desc
-
-
---9.Department wise no_of manager
-
-select dept_name, COUNT(emp_no) as total_manager from FINAL_TB where title='manager'
-group by dept_name order by total_manager desc
-
---10.Department wise performance analysis
-
-select dept_name,Last_performance_rating,COUNT(distinct emp_no)
-from FINAL_TB
-group by dept_name,Last_performance_rating
-order by dept_name
-
---11. Employees Hire Trends
-
-SELECT YEAR(hire_date) AS hire_year, COUNT(*) AS employee_count
-FROM final_table
-GROUP BY YEAR(hire_date)
-ORDER BY hire_year
-
---12. Employee Exit Trends 
-
-SELECT YEAR(last_date) AS exit_year, COUNT(emp_no) AS total_exits
-FROM final_table
-WHERE last_date IS NOT NULL
-GROUP BY YEAR(last_date)
-order by  exit_year
-
---13. Salary Growth Over Time
-
-SELECT YEAR(hire_date) AS hire_year, 
-       AVG(salary) AS avg_salary
-FROM final_table
-GROUP BY YEAR(hire_date)
-ORDER BY hire_year
-
-
-
-
---14.Employee with No. of projects
-
-SELECT *,total_projects*100.00/SUM(total_projects)OVER() AS PCT FROM(
+SELECT *,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
       CASE 
         WHEN no_of_projects BETWEEN 1 AND 3 THEN 'Low(1-3)'
         WHEN no_of_projects BETWEEN 4 AND 7 THEN 'Medium(4-7)'
         WHEN no_of_projects BETWEEN 8 AND 10 THEN 'High(8-10)'
         ELSE 'Out of Range'
-    END AS project_category,sum(no_of_projects) as total_projects
+    END AS project_category,COUNT(EMP_NO) AS NO_OF_EMP
 FROM final_table
  
 GROUP BY
@@ -256,9 +232,9 @@ GROUP BY
         ELSE 'Out of Range'
     END) AS X
 ORDER BY
-   total_projects desc
+   NO_OF_EMP desc
 
---15.Employee by age group
+--5.Existing Employees by age group 
 
 SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
@@ -270,8 +246,8 @@ CASE
     ELSE '>60'
 END AS age_group
 ,COUNT(EMP_NO) AS NO_OF_EMP FROM(
-SELECT EMP_NO,DATEDIFF(day,birth_date,isnull(last_date,MAX(last_date)over()))/365.0 AS AGE 
-   FROM final_table ) AS X
+SELECT EMP_NO,DATEDIFF(day,birth_date,MAX(last_date)over())/365.0 AS AGE 
+   FROM final_table where [left]=0 ) AS X
 GROUP BY  CASE 
     WHEN age>=21 and AGE<=30 THEN '21-30'
     WHEN age>30 and AGE<=40  THEN '31-40'
@@ -282,7 +258,193 @@ END
 
 	) AS Y
 
---16.Employees by salary range
+
+--6. Employees Hire Trends
+
+SELECT YEAR(hire_date) AS hire_year, COUNT(*) AS employee_count
+FROM final_table
+GROUP BY YEAR(hire_date)
+ORDER BY hire_year
+
+--7. Employee Exit Trends 
+
+SELECT YEAR(last_date) AS exit_year, COUNT(emp_no) AS total_exits
+FROM final_table
+WHERE last_date IS NOT NULL
+GROUP BY YEAR(last_date)
+order by  exit_year
+
+
+ --8. Year wise total employee
+
+select * , isnull(LAG(cum_left_emp_count)over(order by years),0) as new_count ,
+(SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over( order by years),0))
+ as total_emp
+ 
+from(
+select *,
+SUM(total_emp_hired)over( order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM final_table
+    GROUP BY YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM final_table
+    WHERE [left] = 1
+    GROUP BY  YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr 
+
+) as z) as p
+order by years
+
+
+-------------------------------------------------------------------------------
+
+-- ** Department analysis **
+
+--1.Department wise Employee
+
+select dept_name, COUNT(emp_no) as total_emp from FINAL_TB
+group by dept_name order by total_emp desc
+
+--2.Department wise average salary
+
+select  dept_name, AVG(salary) as avg_salary from FINAL_TB
+group by dept_name order by avg_salary desc
+
+
+--3.Department wise no_of manager
+
+select dept_name, COUNT(emp_no) as total_manager from FINAL_TB where title='manager'
+group by dept_name order by total_manager desc
+
+--4.Department wise performance analysis
+
+select dept_name,Last_performance_rating,COUNT(distinct emp_no)
+from FINAL_TB
+group by dept_name,Last_performance_rating
+order by dept_name
+
+--5. Year wise employee of each department
+
+
+select * , isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0) as new_count ,
+(SUM(total_emp_hired)over(partition by dept_name order by years) - isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0))
+ as total_emp
+ 
+from(
+select *,
+SUM(total_emp_hired)over(partition by dept_name order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(partition by dept_name order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.dept_name, y.dept_name) AS dept_name,
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+   
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        dept_name,
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM FINAL_TB
+    GROUP BY dept_name, YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        dept_name,
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM FINAL_TB
+    WHERE [left] = 1
+    GROUP BY dept_name, YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr AND x.dept_name = y.dept_name
+
+) as z) as p
+order by years,dept_name
+-----------------------------------------------------------------------------
+
+-- ** Salary analysis **
+
+--1. Year-wise average salary
+
+select * , isnull(LAG(cum_left_emp_count)over(order by years),0) as new_count ,
+(cum_hired_emp_count - isnull(LAG(cum_left_emp_count)over( order by years),0))  as total_emp,
+isnull(LAG(cum_hired_salary)over(order by years),0) as new_sal,
+(cum_hired_salary - isnull(LAG(cum_left_salary)over( order by years),0))  as total_sal,
+(cum_hired_salary - isnull(LAG(cum_left_salary)over( order by years),0))/(cum_hired_emp_count - isnull(LAG(cum_left_emp_count)over( order by years),0)) as avg_sal
+
+
+ 
+from(
+select *,
+SUM(total_emp_hired)over( order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(order by years) as cum_left_emp_count,
+SUM(total_salary_hired)over( order by years) as cum_hired_salary,
+SUM(total_salary_left)over(order by years) as cum_left_salary
+
+from(
+SELECT 
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+	COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+    COALESCE(y.total_emp_left, 0) AS total_emp_left,
+    COALESCE(x.total_salary_hired, 0) AS total_salary_hired,
+    COALESCE(y.total_salary_left, 0) AS total_salary_left
+FROM (
+    SELECT 
+        YEAR(hire_date) AS hire_yr,
+		COUNT(emp_no) AS total_emp_hired,
+        sum(salary) AS total_salary_hired
+    FROM final_table
+    GROUP BY YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        YEAR(last_date) AS last_yr,
+		COUNT(emp_no) AS total_emp_left,
+        sum(salary) AS total_salary_left
+    FROM final_table
+    WHERE [left] = 1
+    GROUP BY  YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr 
+
+) as z) as p
+order by years
+
+--2. Average Salary by Job Title
+
+select title,avg(salary) as avg_sal from final_table group by title order by avg_sal desc
+
+--3. Average Salary by Last Performance Rating
+
+SELECT last_performance_rating, 
+       AVG(salary) AS avg_salary, 
+       MIN(salary) AS min_salary, 
+       MAX(salary) AS max_salary, 
+       COUNT(*) AS employee_count
+FROM final_table
+GROUP BY last_performance_rating
+ORDER BY last_performance_rating
+
+--4.Employees by salary range
 
 SELECT *,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT
@@ -309,7 +471,12 @@ ORDER BY
 
 
 
---17. Employee Attrition Analysis
+-------------------------------------------------------------------------
+
+
+-- ** Attrition **
+
+--1. Employee Attrition Analysis
 
 select *,(no_of_emp*100.00)/SUM(no_of_emp)over() as percntg from(
 select 'emp_left' as emp_status,COUNT(*) as no_of_emp from final_table where [left]=1
@@ -317,26 +484,38 @@ union
 select 'emp_stayed' as emp_status,COUNT(*) as no_of_emp from final_table where [left]=0
 ) as x
 
---18. Attrition by Gender
+--2. Share of Overall Employee Attrition by Gender
 
 select *,(total_no*100.00)/SUM(total_no)over() as percntg from(
 select 'Female' as gender,COUNT(*) as total_no from final_table where sex='F' and [left]=1
 union 
 select 'Male' as gender,COUNT(*) as total_no from final_table where sex='M'  and [left]=1) as x 
 
---19. Attrition by Department
+--3. Department-wise share to Overall Employee Attrition
 
 select *,total_no*100.00/SUM(total_no)over() as pct from(
 select dept_name,COUNT(*) as total_no
 from FINAL_TB where [left]=1 group by dept_name) as x order by total_no desc
 
---20. Attrition by Job Title
+--4. Department and gender-wise share to Overall Employee Attrition
+
+select *,total_no*100.00/SUM(total_no)over() as pct from(
+select dept_name,sex,COUNT(*) as total_no
+from FINAL_TB where [left]=1 group by dept_name,sex) as x order by dept_name
+
+--5. Share of Overall Employee Attrition by Job Title
 
 select *,total_no*100.00/SUM(total_no)over() as pct from(
 select title,COUNT(*) as total_no
 from final_table where [left]=1 group by title) as x order by total_no desc
 
---21. Attrition by Salary Range
+--6. Share of Overall Employee Attrition by Job Title and gender
+
+select *,total_no*100.00/SUM(total_no)over() as pct from(
+select title,sex,COUNT(*) as total_no
+from final_table where [left]=1 group by title,sex) as x order by title
+
+--7. Share of Overall Employee Attrition by Salary Range
 
 SELECT *,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT
@@ -362,13 +541,13 @@ ORDER BY
     salary_range
 
 
---22. Attrition by Performance Rating
+--8. Share of Overall Employee Attrition by Performance Rating
 
 select *,total_no*100.00/SUM(total_no)over() as pct from(
 select LAST_PERFORMANCE_RATING,COUNT(*) as total_no
-from FINAL_TB where [left]=1 group by LAST_PERFORMANCE_RATING) as x order by total_no desc
+from final_table where [left]=1 group by LAST_PERFORMANCE_RATING) as x order by total_no desc
 
---23. Attrition by Tenure
+--9. Attrition by Tenure
 
 SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
@@ -394,7 +573,7 @@ GROUP BY  CASE
 
 
 	
---24. Attrition by Age Group
+--10. Share of Overall Employee Attrition by Age Group
 
 SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
@@ -419,16 +598,16 @@ END
 	) AS Y
 
 
---25. Attrition by Number of Projects
+--11. Share of Overall Employee Attrition by Number of Projects
 
-SELECT *,total_projects*100.00/SUM(total_projects)OVER() AS PCT FROM(
+SELECT *,NO_OF_EMP*100.00/SUM( NO_OF_EMP )OVER() AS PCT FROM(
 SELECT 
       CASE 
         WHEN no_of_projects BETWEEN 1 AND 3 THEN 'Low(1-3)'
         WHEN no_of_projects BETWEEN 4 AND 7 THEN 'Medium(4-7)'
         WHEN no_of_projects BETWEEN 8 AND 10 THEN 'High(8-10)'
         ELSE 'Out of Range'
-    END AS project_category,sum(no_of_projects) as total_projects
+    END AS project_category,COUNT(EMP_NO) AS NO_OF_EMP 
 FROM final_table
  where [left]=1
 GROUP BY
@@ -439,9 +618,52 @@ GROUP BY
         ELSE 'Out of Range'
     END) AS X
 ORDER BY
-   total_projects desc
+   NO_OF_EMP desc
 
---26. Year wise attrition rate of each department
+----------------------------------------------------------------------------
+
+
+ -- ** Attrition rate **
+
+ --1. Year wise attrition rate 
+
+
+select * , isnull(LAG(cum_left_emp_count)over(order by years),0) as new_count ,
+(SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over( order by years),0))
+ as total_emp,
+ total_emp_left*100.00/(SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over(order by years),0)) as pct
+from(
+select *,
+SUM(total_emp_hired)over( order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM final_table
+    GROUP BY YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM final_table
+    WHERE [left] = 1
+    GROUP BY  YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr 
+
+) as z) as p
+order by years
+
+
+--2. Year wise attrition rate of each department
 
 
 select * , isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0) as new_count ,
@@ -482,36 +704,71 @@ ON x.hire_yr = y.last_yr AND x.dept_name = y.dept_name
 ) as z) as p
 order by dept_name,years
 
+--3. Department wise attrition rate
+
+select x.dept_name,total_emp_left,total_emp,x.total_emp_left*100.00/total_emp as attrition_rate from 
+(select dept_name,COUNT(*) as total_emp_left from final_tb where [left]=1 group by dept_name) as x
+join (select dept_name,COUNT(*) as total_emp from final_tb  group by dept_name) as y
+on x.dept_name=y.dept_name
+
+
+--4. Job title wise attrition rate
+
+select x.title,total_emp_left,total_emp,total_emp_left*100.00/total_emp as attrition_rate from 
+(select title,COUNT(*) as total_emp_left from final_table where [left]=1 group by title) as x
+join (select title,COUNT(*) as total_emp from final_table group by title) as y
+on x.title=y.title
+
+--5. Performance rating wise attrition rate
+
+select x.Last_performance_rating,total_emp_left,total_emp,total_emp_left*100.00/total_emp as attrition_rate from 
+(select Last_performance_rating,COUNT(*) as total_emp_left from final_table where [left]=1 group by Last_performance_rating) as x
+join (select Last_performance_rating,COUNT(*) as total_emp from final_table  group by Last_performance_rating) as y
+on x.Last_performance_rating=y.Last_performance_rating
+
+--6. Gender wise attrition rate
+
+select x.Sex,total_emp_left,total_emp,total_emp_left*100.00/total_emp as attrition_rate from 
+(select Sex,COUNT(*) as total_emp_left from final_table where [left]=1 group by Sex) as x
+join (select Sex,COUNT(*) as total_emp from final_table  group by Sex) as y
+on x.Sex=y.Sex
+
+--7. Department and gender wise attrition rate
+
+select x.dept_name,x.sex,total_emp_left,total_emp,total_emp_left*100.00/total_emp as attrition_rate from 
+(select dept_name,sex,COUNT(*) as total_emp_left from final_tb where [left]=1 group by dept_name,sex) as x
+join (select dept_name,sex,COUNT(*) as total_emp from final_tb  group by dept_name,sex) as y
+on x.dept_name=y.dept_name and x.sex=y.sex
+order by x.dept_name
+
+--8. Job title and gender wise attrition rate
+
+select y.title,y.sex,isnull(emp_left,0) as total_emp_left,total_emp,isnull(emp_left,0)*100.00/total_emp as attrition_rate from 
+(select title,sex,COUNT(*) as emp_left from final_table where [left]=1 group by title,sex) as x
+full outer join (select title,sex,COUNT(*) as total_emp from final_table  group by title,sex) as y
+on x.title=y.title and x.sex=y.sex
+order by y.title
+
+
  
-
-
-
-
-
-
-
-
-
-
------------------------------------------------**------------------------------------------
+ ----------------------------------------------**----------------------------------------------
+ ----------------------------------------------**----------------------------------------------
 	
 
+	   
+-- **For power bi**
 
+----Employee distribution by no. of projects
 
-
-
-
-
-
-
-SELECT 'emp_left' as emp_status,*,total_projects*100.00/SUM(total_projects)OVER() AS PCT FROM(
+select * into emp_projects from (
+SELECT 'emp_left' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
       CASE 
         WHEN no_of_projects BETWEEN 1 AND 3 THEN 'Low(1-3)'
         WHEN no_of_projects BETWEEN 4 AND 7 THEN 'Medium(4-7)'
         WHEN no_of_projects BETWEEN 8 AND 10 THEN 'High(8-10)'
         ELSE 'Out of Range'
-    END AS project_category,sum(no_of_projects) as total_projects
+    END AS project_category,COUNT(EMP_NO) AS NO_OF_EMP
 FROM final_table
  where [left]=1
 GROUP BY
@@ -522,14 +779,14 @@ GROUP BY
         ELSE 'Out of Range'
     END) AS X
 union
-SELECT 'emp_stayed' as emp_status,*,total_projects*100.00/SUM(total_projects)OVER() AS PCT FROM(
+SELECT 'emp_stayed' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
 SELECT 
       CASE 
         WHEN no_of_projects BETWEEN 1 AND 3 THEN 'Low(1-3)'
         WHEN no_of_projects BETWEEN 4 AND 7 THEN 'Medium(4-7)'
         WHEN no_of_projects BETWEEN 8 AND 10 THEN 'High(8-10)'
         ELSE 'Out of Range'
-    END AS project_category,sum(no_of_projects) as total_projects
+    END AS project_category,COUNT(EMP_NO) AS NO_OF_EMP
 FROM final_table
  where [left]=0
 GROUP BY
@@ -538,9 +795,406 @@ GROUP BY
         WHEN no_of_projects BETWEEN 4 AND 7 THEN 'Medium(4-7)'
         WHEN no_of_projects BETWEEN 8 AND 10 THEN 'High(8-10)'
         ELSE 'Out of Range'
-    END) AS X
+    END) AS X) as z
+
+
+	select * from emp_projects
+
+-----------------------------------------------------------------------------------------
+
+
+-- No of employees by Tenure group
+
+select * into emp_tenure from(
+SELECT 'emp_left' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+
+SELECT 
+CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END AS tenure_group,COUNT(EMP_NO) AS NO_OF_EMP FROM(
+SELECT 
+    emp_no,
+    DATEDIFF(day, hire_date,last_date) / 365.0 AS tenure
+FROM 
+    final_table
+WHERE 
+    [LEFT] = 1) AS X
+GROUP BY  CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END
+	) AS Y
+
+union
+
+SELECT 'emp_stayed' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+SELECT 
+CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END AS tenure_group,COUNT(EMP_NO) AS NO_OF_EMP FROM(
+SELECT 
+    emp_no,
+    DATEDIFF(day, hire_date,max(last_date)over()) / 365.0 AS tenure
+FROM 
+    final_table
+WHERE 
+    [LEFT] = 0) AS p
+GROUP BY  CASE 
+        WHEN tenure>=1 AND tenure<=4 THEN 'Low Tenure(>=1 to <=4)'
+        WHEN tenure>4 AND tenure<=8  THEN 'Medium Tenure(>4 to <=8)'
+        ELSE 'High Tenure(>8 to <=14)'
+    END
+	) AS q) as t
 
 
 
-----------------------------------------**-------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--No of Employees by salary range
+
+select * into emp_salary from (
+SELECT 'emp_left' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+SELECT 
+    CASE
+        WHEN salary BETWEEN 40000 AND 60000 THEN '40k-60k'
+        WHEN salary BETWEEN 60001 AND 80000 THEN '60k-80k'
+        WHEN salary BETWEEN 80001 AND 100000 THEN '80k-100k'
+        WHEN salary BETWEEN 100001 AND 129492 THEN '100k-130k'
+        ELSE 'Unknown'
+    END AS salary_range,
+COUNT(EMP_NO) AS NO_OF_EMP
+FROM
+    final_table 
+	where [left]=1
+GROUP BY
+        CASE
+        WHEN salary BETWEEN 40000 AND 60000 THEN '40k-60k'
+        WHEN salary BETWEEN 60001 AND 80000 THEN '60k-80k'
+        WHEN salary BETWEEN 80001 AND 100000 THEN '80k-100k'
+        WHEN salary BETWEEN 100001 AND 129492 THEN '100k-130k'
+        ELSE 'Unknown'
+    END ) AS X
+
+union
+
+SELECT 'emp_stayed' as emp_status,*,NO_OF_EMP*100.00/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+
+SELECT
+    CASE
+        WHEN salary BETWEEN 40000 AND 60000 THEN '40k-60k'
+        WHEN salary BETWEEN 60001 AND 80000 THEN '60k-80k'
+        WHEN salary BETWEEN 80001 AND 100000 THEN '80k-100k'
+        WHEN salary BETWEEN 100001 AND 129492 THEN '100k-130k'
+        ELSE 'Unknown'
+    END AS salary_range,
+COUNT(EMP_NO) AS NO_OF_EMP
+FROM
+    final_table 
+	where [left]=0
+GROUP BY
+        CASE
+        WHEN salary BETWEEN 40000 AND 60000 THEN '40k-60k'
+        WHEN salary BETWEEN 60001 AND 80000 THEN '60k-80k'
+        WHEN salary BETWEEN 80001 AND 100000 THEN '80k-100k'
+        WHEN salary BETWEEN 100001 AND 129492 THEN '100k-130k'
+        ELSE 'Unknown'
+    END ) AS X
+	) as z
+
+select * from emp_salary
+
+------------------------------------------------------------------------
+
+
+-- Year wise employee of each department
+
+select * into dept_empcount from(
+select * , isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0) as new_count ,
+(SUM(total_emp_hired)over(partition by dept_name order by years) - isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0))
+ as total_emp
+ 
+from(
+select *,
+SUM(total_emp_hired)over(partition by dept_name order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(partition by dept_name order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.dept_name, y.dept_name) AS dept_name,
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+   
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        dept_name,
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM FINAL_TB
+    GROUP BY dept_name, YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        dept_name,
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM FINAL_TB
+    WHERE [left] = 1
+    GROUP BY dept_name, YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr AND x.dept_name = y.dept_name
+
+) as z) as p) as t
+order by dept_name,years
+
+------------------------------------------------------------------------------------
+
+ -- Year wise average salary of each department
+
+select * into dept_avgsal_yearwise from (
+select * , isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0) as new_count ,
+(cum_hired_emp_count - isnull(LAG(cum_left_emp_count)over(partition by dept_name  order by years),0))  as total_emp,
+isnull(LAG(cum_hired_salary)over(partition by dept_name order by years),0) as new_sal,
+(cum_hired_salary - isnull(LAG(cum_left_salary)over(partition by dept_name  order by years),0))  as total_sal,
+(cum_hired_salary - isnull(LAG(cum_left_salary)over(partition by dept_name  order by years),0))/(cum_hired_emp_count - isnull(LAG(cum_left_emp_count)over(partition by dept_name  order by years),0)) as avg_sal
+
+
+ 
+from(
+select *,
+SUM(total_emp_hired)over(partition by dept_name order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(partition by dept_name order by years) as cum_left_emp_count,
+SUM(total_salary_hired)over(partition by dept_name  order by years) as cum_hired_salary,
+SUM(total_salary_left)over(partition by dept_name order by years) as cum_left_salary
+
+from(
+SELECT
+    COALESCE(x.dept_name, y.dept_name) AS dept_name,
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+	COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+    COALESCE(y.total_emp_left, 0) AS total_emp_left,
+    COALESCE(x.total_salary_hired, 0) AS total_salary_hired,
+    COALESCE(y.total_salary_left, 0) AS total_salary_left
+FROM (
+    SELECT 
+	    dept_name,
+        YEAR(hire_date) AS hire_yr,
+		COUNT(emp_no) AS total_emp_hired,
+        sum(salary) AS total_salary_hired
+    FROM FINAL_TB
+    GROUP BY dept_name,YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+	    dept_name,
+        YEAR(last_date) AS last_yr,
+		COUNT(emp_no) AS total_emp_left,
+        sum(salary) AS total_salary_left
+    FROM FINAL_TB
+    WHERE [left] = 1
+    GROUP BY  dept_name,YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr and x.dept_name=y.dept_name
+
+) as z) as p) as t
+order by years
+
+
+----------------------------------------------------------------------------------
+
+ -- Overall Year wise attrition rate 
+
+ select * into year_attrition from (
+select * , isnull(LAG(cum_left_emp_count)over(order by years),0) as new_count ,
+(SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over( order by years),0))
+ as total_emp,
+ total_emp_left*100.00/(SUM(total_emp_hired)over(order by years) - isnull(LAG(cum_left_emp_count)over(order by years),0)) as pct
+from(
+select *,
+SUM(total_emp_hired)over( order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM final_table
+    GROUP BY YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM final_table
+    WHERE [left] = 1
+    GROUP BY  YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr 
+
+) as z) as p) as t
+order by years
+
+-------------------------------------------------------------------------------
+
+
+
+-- Year wise attrition rate of each department
+
+select * into year_dept_attrition from(
+select * , isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0) as new_count ,
+(SUM(total_emp_hired)over(partition by dept_name order by years) - isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0))
+ as total_emp,
+ total_emp_left*100.00/(SUM(total_emp_hired)over(partition by dept_name order by years) - isnull(LAG(cum_left_emp_count)over(partition by dept_name order by years),0)) as pct
+from(
+select *,
+SUM(total_emp_hired)over(partition by dept_name order by years) as cum_hired_emp_count,
+SUM(total_emp_left)over(partition by dept_name order by years) as cum_left_emp_count
+
+from(
+SELECT 
+    COALESCE(x.dept_name, y.dept_name) AS dept_name,
+    COALESCE(x.hire_yr, y.last_yr) AS years,
+    COALESCE(x.total_emp_hired, 0) AS total_emp_hired,
+   
+    COALESCE(y.total_emp_left, 0) AS total_emp_left
+FROM (
+    SELECT 
+        dept_name,
+        YEAR(hire_date) AS hire_yr,
+        COUNT(emp_no) AS total_emp_hired
+    FROM FINAL_TB
+    GROUP BY dept_name, YEAR(hire_date)
+) AS x
+FULL OUTER JOIN (
+    SELECT 
+        dept_name,
+        YEAR(last_date) AS last_yr,
+        COUNT(emp_no) AS total_emp_left
+    FROM FINAL_TB
+    WHERE [left] = 1
+    GROUP BY dept_name, YEAR(last_date)
+) AS y
+ON x.hire_yr = y.last_yr AND x.dept_name = y.dept_name
+
+) as z) as p) as t
+order by dept_name,years
+
+
+
+-------------------------------------------------------------------------
+
+--Share of department-wise Employee Attrition by Age Group
+
+select * into dept_agegroup_attrition from(
+SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+SELECT dept_name,
+CASE 
+    WHEN age>=21 and AGE<=30 THEN '21-30'
+    WHEN age>30 and AGE<=40  THEN '31-40'
+    WHEN age>40 and AGE<=50  THEN '41-50'
+    WHEN age>50 and AGE<=60  THEN '51-60'
+    ELSE '>60'
+END AS age_group
+,COUNT(EMP_NO) AS NO_OF_EMP FROM(
+SELECT EMP_NO,dept_name,DATEDIFF(day,birth_date,last_date)/365.0 AS AGE 
+   FROM FINAL_TB WHERE [LEFT]=1) AS X
+GROUP BY dept_name, CASE 
+    WHEN age>=21 and AGE<=30 THEN '21-30'
+    WHEN age>30 and AGE<=40  THEN '31-40'
+    WHEN age>40 and AGE<=50  THEN '41-50'
+    WHEN age>50 and AGE<=60  THEN '51-60'
+    ELSE '>60'
+END
+
+	) AS Y) as t
+
+------------------------------------------------------------------------------------
+
+-- Share of Overall Employee Attrition by Age Group
+
+select * into agegroup_attrition from(
+SELECT *,(NO_OF_EMP*100.00)/SUM(NO_OF_EMP)OVER() AS PCT FROM(
+SELECT 
+CASE 
+    WHEN age>=21 and AGE<=30 THEN '21-30'
+    WHEN age>30 and AGE<=40  THEN '31-40'
+    WHEN age>40 and AGE<=50  THEN '41-50'
+    WHEN age>50 and AGE<=60  THEN '51-60'
+    ELSE '>60'
+END AS age_group
+,COUNT(EMP_NO) AS NO_OF_EMP FROM(
+SELECT EMP_NO,DATEDIFF(day,birth_date,last_date)/365.0 AS AGE 
+   FROM final_table WHERE [LEFT]=1) AS X
+GROUP BY  CASE 
+    WHEN age>=21 and AGE<=30 THEN '21-30'
+    WHEN age>30 and AGE<=40  THEN '31-40'
+    WHEN age>40 and AGE<=50  THEN '41-50'
+    WHEN age>50 and AGE<=60  THEN '51-60'
+    ELSE '>60'
+END
+
+	) AS Y) as t
+
+
+
+
+-------------------------------------------------**----------------------------------------------
+
+
+
+
+---extra analysis
+
+
+--Average Performance Rating by Department
+
+select dept_name, 
+    SUM(
+        CASE Last_performance_rating
+            WHEN 'PIP' THEN 1 * total_emp 
+            WHEN 'C' THEN 2 * total_emp 
+            WHEN 'B' THEN 3 * total_emp 
+            WHEN 'S' THEN 4 * total_emp 
+            WHEN 'A' THEN 5 * total_emp 
+        END
+    ) * 1.00/ SUM(total_emp)AS average_performance_rating from(
+select  dept_name,Last_performance_rating ,COUNT(*) as total_emp from FINAL_TB
+group by dept_name,Last_performance_rating
+--order by dept_name 
+)as x
+group by dept_name
+
+
+--Average Performance Rating by Title
+
+select title, 
+    SUM(
+        CASE Last_performance_rating
+            WHEN 'PIP' THEN 1 * total_emp 
+            WHEN 'C' THEN 2 * total_emp 
+            WHEN 'B' THEN 3 * total_emp 
+            WHEN 'S' THEN 4 * total_emp 
+            WHEN 'A' THEN 5 * total_emp 
+        END
+    ) * 1.00/ SUM(total_emp)AS average_performance_rating from(
+select  title,Last_performance_rating ,COUNT(*) as total_emp from FINAL_TB
+group by title,Last_performance_rating
+--order by title
+)as x
+group by title	   	  
+
+
+
+
+--------------------------------------------------------------------------------
 
