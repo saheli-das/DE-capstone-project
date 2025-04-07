@@ -17,6 +17,7 @@ ON S.emp_no=E.emp_no
 ON T.title_id=E.emp_title_id
 
 
+
 SELECT Top 5 * FROM FINAL_Table 
 
 
@@ -96,8 +97,6 @@ WHERE dept_name='Sales'
 SELECT emp_no,last_name,first_name,dept_name FROM FINAL_TB 
 WHERE dept_name in ('Sales','development')
 
-SELECT emp_no,last_name,first_name,dept_nameS FROM final_table
-WHERE dept_nameS in ('Sales','development')
 
 /*Q8. A list showing the frequency count of employee last names, in descending order.
        ( i.e., how many employees share each last name */
@@ -115,7 +114,8 @@ ORDER BY AVG_SAL DESC
 
 --Q11.Calculate employee tenure & show the tenure distribution among the employees
 
-select emp_no,DATEDIFF(year,hire_date,ISNULL(last_date,getdate()))as tenure from final_table
+select emp_no,DATEDIFF(year,hire_date,ISNULL(last_date,MAX(last_date)over()))as tenure
+from final_table
 
 ------------------------------------------**--------------------------------------------------
 
@@ -144,6 +144,12 @@ select dept_name, COUNT(emp_no) as total_emp from FINAL_TB
 group by dept_name order by total_emp desc 
 
 select MAX(salary) as max_sal,min(salary) as min_sal from final_table 
+
+--Average Tenure of the employee
+
+select AVG(tenure) as avg_tenure from(
+select emp_no,DATEDIFF(day,hire_date,ISNULL(last_date,MAX(last_date)over()))/365.0 as tenure
+from final_table)as x
 
 --Average Tenure of the Employee who left
 
@@ -255,6 +261,8 @@ GROUP BY  CASE
         ELSE 'High Tenure(>8 to <=14)'
     END
 	) AS Y
+
+
 
 --6.Existing Employees by age group 
 
