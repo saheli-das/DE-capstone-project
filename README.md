@@ -1,3 +1,5 @@
+## DE-capstone-project ##
+
 A company provided the data of its employees from 1985 to 2013 in 6 CSV files for analysis of employee data with the expectation to create an App for prediction of it's employees attrition
 
 As part of this project, I have designed Entitiy Relationship Diagram, performed Exploratory Data Analysis using SQL server, Python, Created interactive dashboards in powerBI for visualisation and published it on Power BI service and also developed Machine Learning Models using Logistic Regression, Decision Tree, Random Forest, XGboost, KNN.
